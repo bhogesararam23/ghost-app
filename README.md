@@ -1,36 +1,78 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Ghost Network 👻
 
-## Getting Started
+**Ghost Network** is a prototype for a decentralized, local-first, end-to-end encrypted messaging application. It is designed to demonstrate privacy-preserving communication where the server acts solely as a blind relay, possessing zero knowledge of user identities or message content.
 
-First, run the development server:
+## 🚀 Key Features
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+- **Local-First Identity**: No email, phone number, or password required. Your identity is an Ed25519 keypair generated securely in your browser.
+- **End-to-End Encryption**: All messages are encrypted using ephemeral session keys derived via ECDH (X25519). The server stores only ciphertext.
+- **Zero-Knowledge Architecture**: The backend (Supabase) orchestrates message delivery but lacks the cryptographic keys to decrypt them.
+- **Network Agnostic**: Designed to operate without a central user directory. Connections are established via out-of-band Token ID exchange (Handshake).
+- **Self-Healing Sync**: Automatic synchronization ensures your local identity remains recognized by the relay network without user intervention.
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## 🛠 Tech Stack
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+- **Frontend**: Next.js 15 (App Router), React, TypeScript
+- **Styling**: TailwindCSS
+- **Backend/Database**: Supabase (PostgreSQL with Row Level Security)
+- **Cryptography**: 
+  - `libsodium-wrappers` / `tweetnacl` (Ed25519 signatures, X25519 key exchange)
+  - `Web Crypto API` (AES-GCM encryption)
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## 🏗 Architecture
 
-## Learn More
+### 1. Identity Generation
+Identities are generated locally using `Ed25519`. The private key is encrypted with a user-provided passphrase using AES-GCM and stored in `localStorage`. The server receives only the Public Key and a derived `Token ID`.
 
-To learn more about Next.js, take a look at the following resources:
+### 2. Handshake Protocol
+To prevent spam and ensure trust, users must perform a cryptographic handshake:
+1. **Initiator** shares their `Token ID`.
+2. **Receiver** requests a connection.
+3. **Initiator** accepts, utilizing the public keys to derive a shared secret.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+### 3. Messaging
+Messages are encrypted with high-entropy nonces. The database enforces strict Row Level Security (RLS) policies, ensuring users can only access messages explicitly addressed to them or sent by them.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## 📦 Getting Started
 
-## Deploy on Vercel
+### Prerequisites
+- Node.js 18+
+- A Supabase project
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+### Installation
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+1. **Clone the repository**
+   ```bash
+   git clone https://github.com/your-username/ghost-network.git
+   cd ghost-network
+   ```
+
+2. **Install dependencies**
+   ```bash
+   npm install
+   ```
+
+3. **Configure Environment**
+   Create a `.env.local` file with your Supabase credentials:
+   ```env
+   NEXT_PUBLIC_SUPABASE_URL=your_supabase_url
+   NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
+   ```
+
+4. **Initialize Database**
+   Run the SQL scripts in `supabase/schema.sql` in your Supabase SQL Editor to set up tables and RLS policies.
+
+5. **Run the Development Server**
+   ```bash
+   npm run dev
+   ```
+
+## 🛡 Security Note
+
+This is a **concept prototype**. While it uses industry-standard cryptographic primitives, it has not undergone a formal security audit. 
+- **Private keys live in localStorage**: Clearing browser data destroys your identity.
+- **No Forward Secrecy (yet)**: Session keys do not yet rotate per message (Double Ratchet not yet implemented).
+
+## 📄 License
+
+MIT
