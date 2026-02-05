@@ -6,6 +6,8 @@ import { supabase } from "@/lib/supabaseClient";
 import { useKeyContext } from "@/context/KeyContext";
 import { deriveSessionKey } from "@/lib/crypto";
 
+import { useSupabaseAuth } from "@/context/SupabaseAuthProvider";
+
 interface PendingHandshake {
   id: string;
   initiator_id: string;
@@ -17,6 +19,7 @@ interface PendingHandshake {
 export default function HandshakePage() {
   const router = useRouter();
   const { tokenId, publicKey } = useKeyContext();
+  const { user } = useSupabaseAuth(); // Use cached user
   const [targetToken, setTargetToken] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -49,15 +52,20 @@ export default function HandshakePage() {
     }
     setSubmitting(true);
     try {
-      const { data: auth } = await supabase.auth.getUser();
-      const user = auth.user;
-      if (!user) {
+      // Use cached user if available to save a round trip
+      let initiatorUser = user;
+      if (!initiatorUser) {
+        const { data: auth } = await supabase.auth.getUser();
+        initiatorUser = auth.user;
+      }
+
+      if (!initiatorUser) {
         throw new Error("No authenticated user for handshake initiator.");
       }
 
       const expiresAt = new Date(Date.now() + 60 * 60 * 1000).toISOString();
       const { error } = await supabase.from("handshakes").insert({
-        initiator_id: user.id,
+        initiator_id: initiatorUser.id,
         target_token_id: targetToken.trim(),
         expires_at: expiresAt,
       });
@@ -77,18 +85,17 @@ export default function HandshakePage() {
   async function handleAccept(h: PendingHandshake) {
     setError(null);
     try {
-      // Look up users for initiator and self
-      const { data: selfUser, error: selfErr } = await supabase
-        .from("users")
-        .select("id, public_key")
-        .single();
+      // Parallelize lookups for speed
+      const [selfResult, initiatorResult] = await Promise.all([
+        supabase.from("users").select("id, public_key").single(),
+        supabase.from("users").select("id, public_key").eq("id", h.initiator_id).single(),
+      ]);
+
+      const { data: selfUser, error: selfErr } = selfResult;
       if (selfErr || !selfUser) throw selfErr;
 
-      const { data: initiatorUser, error: initErr } = await supabase
-        .from("users")
-        .select("id, public_key")
-        .eq("id", h.initiator_id)
-        .single();
+      const { data: initiatorUser, error: initErr } = initiatorResult;
+
       if (initErr || !initiatorUser) {
         throw new Error("Initiator identity not found. The other device must reload the app to sync its identity.");
       }
@@ -148,6 +155,7 @@ export default function HandshakePage() {
         .eq("id", h.id);
       if (updateErr) throw updateErr;
 
+      setPending((prev) => prev.filter((p) => p.id !== h.id));
       router.replace("/chat");
     } catch (err) {
       console.error(err);

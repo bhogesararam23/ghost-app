@@ -36,7 +36,7 @@ export function KeyProvider({ children }: { children: React.ReactNode }) {
   const [isInitialized, setIsInitialized] = useState(false);
 
   const hasIdentity = !!(publicKey && tokenId && encryptedPrivateKey);
-  const { authReady } = useSupabaseAuth();
+  const { authReady, user, session } = useSupabaseAuth();
 
   // Load keys from storage on mount
   useEffect(() => {
@@ -49,18 +49,25 @@ export function KeyProvider({ children }: { children: React.ReactNode }) {
   const syncIdentity = async () => {
     if (!authReady || !hasIdentity || !publicKey || !tokenId) return;
 
-    // eslint-disable-next-line no-console
-    console.log("Syncing identity for user...");
-    const { data } = await supabase.auth.getUser();
-    if (!data.user) {
+    // Use cached user if available, otherwise fetch
+    let currentUser = user;
+    if (!currentUser) {
+      const { data } = await supabase.auth.getUser();
+      currentUser = data.user;
+    }
+
+    if (!currentUser) {
       // eslint-disable-next-line no-console
       console.warn("No auth user found during sync.");
       return;
     }
 
+    // eslint-disable-next-line no-console
+    console.log("Syncing identity for user...");
+
     const { error } = await supabase.from("users").upsert(
       {
-        id: data.user.id,
+        id: currentUser.id,
         public_key: publicKey,
         token_id: tokenId,
         warning_acknowledged: true,
@@ -78,17 +85,41 @@ export function KeyProvider({ children }: { children: React.ReactNode }) {
   };
 
   // Self-healing: Ensure the user row exists in Supabase if we have a local identity.
+  // Optimization: Check existence (Read) before writing to avoid unnecessary upserts.
   useEffect(() => {
-    if (authReady && hasIdentity) {
-      syncIdentity().catch((err) => console.error("Auto-sync failed:", err));
+    async function checkAndSync() {
+      if (!authReady || !hasIdentity || !user || !publicKey) return;
+
+      // Check if user exists with correct public key
+      const { data, error } = await supabase
+        .from("users")
+        .select("public_key")
+        .eq("id", user.id)
+        .single();
+
+      // If user missing or key mismatch, sync.
+      // We use 'upsert' in syncIdentity which handles creation.
+      if (error || !data || data.public_key !== publicKey) {
+        console.log("User missing or key mismatch on server, syncing...");
+        syncIdentity().catch((err) => console.error("Auto-sync failed:", err));
+      }
     }
-  }, [authReady, hasIdentity]);
+
+    if (authReady && hasIdentity) {
+      checkAndSync();
+    }
+  }, [authReady, hasIdentity, user]);
 
   const initializeIdentity = async (passphrase: string) => {
-    const { data: authData } = await supabase.auth.getUser();
-    let user = authData.user;
+    let currentUser = user;
 
-    if (!user) {
+    // Fallback if context user isn't ready yet (edge case) or missing
+    if (!currentUser) {
+      const { data: authData } = await supabase.auth.getUser();
+      currentUser = authData.user;
+    }
+
+    if (!currentUser) {
       // Fallback: try to create an anonymous session on-demand.
       const { data: anonData, error: anonError } =
         await supabase.auth.signInAnonymously();
@@ -115,7 +146,7 @@ export function KeyProvider({ children }: { children: React.ReactNode }) {
       if (anonError || !anonData?.user) {
         throw new Error("No Supabase auth user; ensure auth session is created.");
       }
-      user = anonData.user;
+      currentUser = anonData.user;
     }
 
     const { publicKey: pub, privateKey } = generateEd25519KeyPair();
@@ -125,7 +156,7 @@ export function KeyProvider({ children }: { children: React.ReactNode }) {
     // Upsert into Supabase users table
     const { error } = await supabase.from("users").upsert(
       {
-        id: user.id,
+        id: currentUser.id,
         public_key: pub,
         token_id: token,
         warning_acknowledged: true,

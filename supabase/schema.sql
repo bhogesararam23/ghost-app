@@ -24,10 +24,11 @@ create table if not exists public.users (
 alter table public.users enable row level security;
 
 -- A user can only see/update their own user row
-create policy "Users can select own row"
+-- A user can see any user row (needed for public key lookup)
+create policy "Users can select any row"
   on public.users
   for select
-  using (auth.uid() = id);
+  using (true);
 
 create policy "Users can insert own row"
   on public.users
