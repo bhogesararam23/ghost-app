@@ -129,31 +129,13 @@ export default function HandshakePage() {
       ).catch(() => { });
       // #endregion
 
-      // Create contacts in both directions
-      const { error: contactErr } = await supabase.from("contacts").insert([
-        {
-          owner_id: selfUser.id,
-          peer_user_id: initiatorUser.id,
-          session_key_material: sessionKeyBase64,
-        },
-        {
-          owner_id: initiatorUser.id,
-          peer_user_id: selfUser.id,
-          session_key_material: sessionKeyBase64,
-        },
-      ]);
-      if (contactErr) {
-        if (contactErr.code === '23505') {
-          throw new Error("You are already connected with this user.");
-        }
-        throw contactErr;
-      }
+      // Use RPC to atomcially create contacts and update handshake (bypasses RLS)
+      const { error: rpcError } = await supabase.rpc("accept_handshake", {
+        p_handshake_id: h.id,
+        p_session_key_material: sessionKeyBase64,
+      });
 
-      const { error: updateErr } = await supabase
-        .from("handshakes")
-        .update({ status: "accepted" })
-        .eq("id", h.id);
-      if (updateErr) throw updateErr;
+      if (rpcError) throw rpcError;
 
       setPending((prev) => prev.filter((p) => p.id !== h.id));
       router.replace("/chat");

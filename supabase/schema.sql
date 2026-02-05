@@ -23,7 +23,6 @@ create table if not exists public.users (
 
 alter table public.users enable row level security;
 
--- A user can only see/update their own user row
 -- A user can see any user row (needed for public key lookup)
 create policy "Users can select any row"
   on public.users
@@ -195,4 +194,58 @@ $$;
 
 grant execute on function public.cleanup_expired_messages() to service_role;
 
+-- RPC: Accept Handshake and Create Contacts ----------------------------------
+-- This function allows the target user to securely accept a handshake.
+-- It creates contact records for BOTH the initiator and the target (acceptor).
+-- This is necessary because RLS prevents the acceptor from inserting a contact
+-- record on behalf of the initiator.
 
+create or replace function public.accept_handshake(
+  p_handshake_id uuid,
+  p_session_key_material text
+)
+returns void
+language plpgsql
+security definer
+as $$
+declare
+  v_initiator_id uuid;
+  v_target_token_id text;
+  v_user_token_id text;
+begin
+  -- 1. Get handshake details
+  select initiator_id, target_token_id
+  into v_initiator_id, v_target_token_id
+  from public.handshakes
+  where id = p_handshake_id and status = 'pending';
+
+  if v_initiator_id is null then
+    raise exception 'Handshake not found or not pending';
+  end if;
+
+  -- 2. Verify the caller is the target
+  select token_id into v_user_token_id
+  from public.users
+  where id = auth.uid();
+
+  if v_user_token_id is distinct from v_target_token_id then
+    raise exception 'Not authorized to accept this handshake';
+  end if;
+
+  -- 3. Insert mutual contacts
+  -- Contact for the acceptor (Me -> Initiator)
+  insert into public.contacts (owner_id, peer_user_id, session_key_material)
+  values (auth.uid(), v_initiator_id, p_session_key_material)
+  on conflict (owner_id, peer_user_id) do nothing;
+
+  -- Contact for the initiator (Initiator -> Me)
+  insert into public.contacts (owner_id, peer_user_id, session_key_material)
+  values (v_initiator_id, auth.uid(), p_session_key_material)
+  on conflict (owner_id, peer_user_id) do nothing;
+
+  -- 4. Update handshake status
+  update public.handshakes
+  set status = 'accepted'
+  where id = p_handshake_id;
+end;
+$$;
