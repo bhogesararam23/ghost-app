@@ -16,6 +16,7 @@ create extension if not exists "uuid-ossp";
 create table if not exists public.users (
   id uuid primary key references auth.users(id) on delete cascade,
   public_key text not null unique,
+  box_public_key text, -- X25519 encryption public key
   token_id text not null unique,
   warning_acknowledged boolean not null default false,
   created_at timestamptz not null default now()

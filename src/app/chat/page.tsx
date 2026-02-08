@@ -26,7 +26,7 @@ interface MessageRow {
 }
 
 export default function ChatPage() {
-  const { publicKey, tokenId } = useKeyContext();
+  const { publicKey, boxPublicKey, tokenId } = useKeyContext();
   const { authReady } = useSupabaseAuth();
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [selectedContactId, setSelectedContactId] = useState<string | null>(
@@ -153,29 +153,6 @@ export default function ChatPage() {
       );
       const synthetic = computeSyntheticTimestamp(new Date());
 
-      // #region agent log
-      fetch(
-        "http://127.0.0.1:7242/ingest/09257254-ad20-4bdc-a801-8c5fc08b2906",
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            sessionId: "debug-session",
-            runId: "run1",
-            hypothesisId: "H4",
-            location: "chat/page.tsx:handleSend",
-            message: "Before inserting message",
-            data: {
-              senderId: userId,
-              recipientId: selectedContact.peer_user_id,
-              contactId: selectedContact.id,
-            },
-            timestamp: Date.now(),
-          }),
-        }
-      ).catch(() => { });
-      // #endregion
-
       const { error } = await supabase.from("messages").insert({
         sender_id: userId,
         recipient_id: selectedContact.peer_user_id,
@@ -188,24 +165,7 @@ export default function ChatPage() {
         ).toISOString(),
       });
       if (error) {
-        // #region agent log
-        fetch(
-          "http://127.0.0.1:7242/ingest/09257254-ad20-4bdc-a801-8c5fc08b2906",
-          {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              sessionId: "debug-session",
-              runId: "run1",
-              hypothesisId: "H4",
-              location: "chat/page.tsx:handleSend",
-              message: "Insert message failed",
-              data: { error: error.message },
-              timestamp: Date.now(),
-            }),
-          }
-        ).catch(() => { });
-        // #endregion
+        console.error("Insert message failed:", error);
         throw error;
       }
       setInput("");
@@ -240,8 +200,8 @@ export default function ChatPage() {
               key={c.id}
               onClick={() => setSelectedContactId(c.id)}
               className={`w-full rounded-md px-3 py-2 text-left text-sm border ${c.id === selectedContactId
-                  ? "border-zinc-400 bg-zinc-900"
-                  : "border-zinc-900 bg-zinc-950 hover:border-zinc-700"
+                ? "border-zinc-400 bg-zinc-900"
+                : "border-zinc-900 bg-zinc-950 hover:border-zinc-700"
                 }`}
             >
               <div className="font-medium text-zinc-100">
@@ -311,8 +271,8 @@ export default function ChatPage() {
                   >
                     <div
                       className={`max-w-xs rounded-2xl px-3 py-2 text-sm ${mine
-                          ? "bg-zinc-100 text-black"
-                          : "bg-zinc-900 text-zinc-100 border border-zinc-800"
+                        ? "bg-zinc-100 text-black"
+                        : "bg-zinc-900 text-zinc-100 border border-zinc-800"
                         }`}
                     >
                       <p>{text}</p>
@@ -367,5 +327,3 @@ function computeSyntheticTimestamp(actual: Date): Date {
   const rounded = Math.floor(ms / intervalMs) * intervalMs;
   return new Date(rounded);
 }
-
-

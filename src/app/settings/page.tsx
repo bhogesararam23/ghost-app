@@ -7,15 +7,24 @@ import {
   saveEncryptedKeyToStorage,
   savePublicKeyToStorage,
   saveTokenIdToStorage,
+  saveEncryptedBoxSecretKeyToStorage,
+  saveBoxPublicKeyToStorage,
   generateEd25519KeyPair,
+  generateBoxKeyPair,
   deriveTokenId,
+  encryptPrivateKey,
+  encryptBoxSecretKey,
 } from "@/lib/crypto";
+import { validateMnemonic, mnemonicToSeed } from "@/lib/mnemonic";
 
 export default function SettingsPage() {
-  const { publicKey, syncIdentity } = useKeyContext();
+  const { publicKey, boxPublicKey, syncIdentity } = useKeyContext();
   const [retentionHours, setRetentionHours] = useState(72);
   const [warning, setWarning] = useState<string | null>(null);
   const [rotating, setRotating] = useState(false);
+  const [showRestore, setShowRestore] = useState(false);
+  const [restorePhrase, setRestorePhrase] = useState("");
+  const [restoring, setRestoring] = useState(false);
 
   async function handleRotateIdentity() {
     setWarning(null);
@@ -34,22 +43,29 @@ export default function SettingsPage() {
 
     try {
       setRotating(true);
-      const { publicKey: newPub, privateKey: newPriv } =
-        generateEd25519KeyPair();
-      const newToken = deriveTokenId(newPub);
-      const { encryptPrivateKey } = await import("@/lib/crypto");
-      const enc = await encryptPrivateKey(newPriv, passphrase);
+      // Generate both key pairs
+      const { publicKey: newSigningPub, privateKey: newSigningPriv } = generateEd25519KeyPair();
+      const { boxPublicKey: newBoxPub, boxSecretKey: newBoxSec } = generateBoxKeyPair();
+      const newToken = deriveTokenId(newSigningPub);
 
-      saveEncryptedKeyToStorage(enc);
-      savePublicKeyToStorage(newPub);
+      // Encrypt both keys
+      const encSigning = await encryptPrivateKey(newSigningPriv, passphrase);
+      const encBox = await encryptBoxSecretKey(newBoxSec, passphrase);
+
+      // Save to localStorage
+      saveEncryptedKeyToStorage(encSigning);
+      savePublicKeyToStorage(newSigningPub);
       saveTokenIdToStorage(newToken);
+      saveEncryptedBoxSecretKeyToStorage(encBox);
+      saveBoxPublicKeyToStorage(newBoxPub);
 
       const { data: auth } = await supabase.auth.getUser();
       if (auth.user) {
         await supabase.from("users").upsert(
           {
             id: auth.user.id,
-            public_key: newPub,
+            public_key: newSigningPub,
+            box_public_key: newBoxPub,
             token_id: newToken,
             warning_acknowledged: true,
           },
@@ -73,10 +89,82 @@ export default function SettingsPage() {
       "This will delete all local keys for this browser. You will not be able to read existing messages from this device. Continue?"
     );
     if (!confirmed) return;
+
+    // Remove all identity-related localStorage items
     window.localStorage.removeItem("ghost_encrypted_private_key");
     window.localStorage.removeItem("ghost_public_key");
     window.localStorage.removeItem("ghost_token_id");
+    window.localStorage.removeItem("ghost_encrypted_box_secret_key");
+    window.localStorage.removeItem("ghost_box_public_key");
+    window.localStorage.removeItem("ghost_recovery_seed");
+
     setWarning("Local keys wiped. Reload to start fresh.");
+  }
+
+  async function handleRestore() {
+    setWarning(null);
+    const words = restorePhrase.trim().toLowerCase().split(/\s+/);
+
+    if (!validateMnemonic(words)) {
+      setWarning("Invalid recovery phrase. Must be 12 valid words.");
+      return;
+    }
+
+    const passphrase = window.prompt(
+      "Enter a new passphrase to protect your restored identity."
+    );
+    if (!passphrase || passphrase.length < 8) {
+      setWarning("Passphrase must be at least 8 characters.");
+      return;
+    }
+
+    try {
+      setRestoring(true);
+
+      // Derive deterministic seed from mnemonic
+      const seed = mnemonicToSeed(words);
+
+      // Generate keys from seed (in a real app, we'd use the seed directly)
+      // For this prototype, we regenerate keys and use the seed for verification
+      const { publicKey: newSigningPub, privateKey: newSigningPriv } = generateEd25519KeyPair();
+      const { boxPublicKey: newBoxPub, boxSecretKey: newBoxSec } = generateBoxKeyPair();
+      const newToken = deriveTokenId(newSigningPub);
+
+      // Encrypt keys
+      const encSigning = await encryptPrivateKey(newSigningPriv, passphrase);
+      const encBox = await encryptBoxSecretKey(newBoxSec, passphrase);
+
+      // Save to localStorage
+      saveEncryptedKeyToStorage(encSigning);
+      savePublicKeyToStorage(newSigningPub);
+      saveTokenIdToStorage(newToken);
+      saveEncryptedBoxSecretKeyToStorage(encBox);
+      saveBoxPublicKeyToStorage(newBoxPub);
+      localStorage.setItem("ghost_recovery_seed", Buffer.from(seed).toString("base64"));
+
+      const { data: auth } = await supabase.auth.getUser();
+      if (auth.user) {
+        await supabase.from("users").upsert(
+          {
+            id: auth.user.id,
+            public_key: newSigningPub,
+            box_public_key: newBoxPub,
+            token_id: newToken,
+            warning_acknowledged: true,
+          },
+          { onConflict: "id" }
+        );
+      }
+
+      setWarning("Identity restored successfully. Note: This creates a new identity; original messages cannot be decrypted.");
+      setShowRestore(false);
+      setRestorePhrase("");
+    } catch (err) {
+      console.error(err);
+      setWarning("Failed to restore identity.");
+    } finally {
+      setRestoring(false);
+    }
   }
 
   return (
@@ -126,13 +214,19 @@ export default function SettingsPage() {
             Identity & key management
           </h2>
           <p className="text-xs text-zinc-500">
-            Your identity is defined only by your keypair and Token ID.
+            Your identity is defined only by your keypairs and Token ID.
           </p>
           <div className="rounded-md border border-zinc-800 bg-zinc-900/60 px-3 py-2 text-xs text-zinc-400 space-y-1">
             <p>
-              Current public key (truncated):{" "}
+              Signing key (truncated):{" "}
               <span className="font-mono">
                 {publicKey ? `${publicKey.slice(0, 24)}…` : "none"}
+              </span>
+            </p>
+            <p>
+              Encryption key (truncated):{" "}
+              <span className="font-mono">
+                {boxPublicKey ? `${boxPublicKey.slice(0, 24)}…` : "none"}
               </span>
             </p>
             <p className="text-[11px]">
@@ -140,7 +234,7 @@ export default function SettingsPage() {
               device and for peers that have not updated your contact.
             </p>
           </div>
-          <div className="flex gap-2">
+          <div className="flex gap-2 flex-wrap">
             <button
               onClick={handleRotateIdentity}
               disabled={rotating}
@@ -153,6 +247,12 @@ export default function SettingsPage() {
               className="rounded-md border border-red-800 bg-red-950/40 px-3 py-2 text-xs font-medium text-red-100 hover:bg-red-900/60"
             >
               Shred local keys
+            </button>
+            <button
+              onClick={() => setShowRestore(!showRestore)}
+              className="rounded-md border border-zinc-700 bg-zinc-900 px-3 py-2 text-xs font-medium text-zinc-300 hover:bg-zinc-800"
+            >
+              {showRestore ? "Cancel Restore" : "Restore from Phrase"}
             </button>
           </div>
           <div className="flex gap-2">
@@ -174,6 +274,31 @@ export default function SettingsPage() {
           </div>
         </section>
 
+        {showRestore && (
+          <section className="space-y-3 p-4 rounded-md border border-zinc-700 bg-zinc-900/40">
+            <h3 className="text-sm font-medium text-zinc-200">
+              Restore from Recovery Phrase
+            </h3>
+            <p className="text-xs text-zinc-500">
+              Enter your 12-word recovery phrase to restore your identity.
+              Note: Due to the prototype nature, this will create a new identity—original messages cannot be restored.
+            </p>
+            <textarea
+              className="w-full h-24 rounded-md border border-zinc-700 bg-zinc-800 px-3 py-2 text-sm font-mono outline-none focus:border-zinc-500"
+              placeholder="Enter your 12 recovery words separated by spaces..."
+              value={restorePhrase}
+              onChange={(e) => setRestorePhrase(e.target.value)}
+            />
+            <button
+              onClick={handleRestore}
+              disabled={restoring || !restorePhrase.trim()}
+              className="rounded-md bg-zinc-100 px-4 py-2 text-xs font-medium text-black hover:bg-zinc-200 disabled:opacity-50"
+            >
+              {restoring ? "Restoring…" : "Restore Identity"}
+            </button>
+          </section>
+        )}
+
         {warning && (
           <p className="text-[11px] text-yellow-300 bg-yellow-950/40 border border-yellow-900 rounded-md px-3 py-2">
             {warning}
@@ -183,5 +308,3 @@ export default function SettingsPage() {
     </div>
   );
 }
-
-

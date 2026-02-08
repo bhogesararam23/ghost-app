@@ -5,20 +5,30 @@ import { supabase } from "@/lib/supabaseClient";
 import { useSupabaseAuth } from "./SupabaseAuthProvider";
 import {
   EncryptedPrivateKey,
+  EncryptedBoxSecretKey,
   generateEd25519KeyPair,
+  generateBoxKeyPair,
   saveEncryptedKeyToStorage,
   savePublicKeyToStorage,
   saveTokenIdToStorage,
+  saveEncryptedBoxSecretKeyToStorage,
+  saveBoxPublicKeyToStorage,
   loadEncryptedKeyFromStorage,
   loadPublicKeyFromStorage,
   loadTokenIdFromStorage,
+  loadEncryptedBoxSecretKeyFromStorage,
+  loadBoxPublicKeyFromStorage,
   deriveTokenId,
+  encryptPrivateKey,
+  encryptBoxSecretKey,
 } from "@/lib/crypto";
 
 interface KeyContextValue {
   publicKey: string | null;
+  boxPublicKey: string | null;
   tokenId: string | null;
   encryptedPrivateKey: EncryptedPrivateKey | null;
+  encryptedBoxSecretKey: EncryptedBoxSecretKey | null;
   isInitialized: boolean;
   hasIdentity: boolean;
   initializeIdentity: (passphrase: string) => Promise<void>;
@@ -30,24 +40,29 @@ const KeyContext = createContext<KeyContextValue | undefined>(undefined);
 export function KeyProvider({ children }: { children: React.ReactNode }) {
   // Hydration fix: Initialize state to null (server-safe)
   const [publicKey, setPublicKey] = useState<string | null>(null);
+  const [boxPublicKey, setBoxPublicKey] = useState<string | null>(null);
   const [tokenId, setTokenId] = useState<string | null>(null);
   const [encryptedPrivateKey, setEncryptedPrivateKey] =
     useState<EncryptedPrivateKey | null>(null);
+  const [encryptedBoxSecretKey, setEncryptedBoxSecretKey] =
+    useState<EncryptedBoxSecretKey | null>(null);
   const [isInitialized, setIsInitialized] = useState(false);
 
-  const hasIdentity = !!(publicKey && tokenId && encryptedPrivateKey);
-  const { authReady, user, session } = useSupabaseAuth();
+  const hasIdentity = !!(publicKey && boxPublicKey && tokenId && encryptedPrivateKey && encryptedBoxSecretKey);
+  const { authReady, user } = useSupabaseAuth();
 
   // Load keys from storage on mount
   useEffect(() => {
     setPublicKey(loadPublicKeyFromStorage());
+    setBoxPublicKey(loadBoxPublicKeyFromStorage());
     setTokenId(loadTokenIdFromStorage());
     setEncryptedPrivateKey(loadEncryptedKeyFromStorage());
+    setEncryptedBoxSecretKey(loadEncryptedBoxSecretKeyFromStorage());
     setIsInitialized(true);
   }, []);
 
   const syncIdentity = async () => {
-    if (!authReady || !hasIdentity || !publicKey || !tokenId) return;
+    if (!authReady || !hasIdentity || !publicKey || !boxPublicKey || !tokenId) return;
 
     // Use cached user if available, otherwise fetch
     let currentUser = user;
@@ -57,18 +72,17 @@ export function KeyProvider({ children }: { children: React.ReactNode }) {
     }
 
     if (!currentUser) {
-      // eslint-disable-next-line no-console
       console.warn("No auth user found during sync.");
       return;
     }
 
-    // eslint-disable-next-line no-console
     console.log("Syncing identity for user...");
 
     const { error } = await supabase.from("users").upsert(
       {
         id: currentUser.id,
         public_key: publicKey,
+        box_public_key: boxPublicKey,
         token_id: tokenId,
         warning_acknowledged: true,
       },
@@ -79,13 +93,11 @@ export function KeyProvider({ children }: { children: React.ReactNode }) {
       console.error("Failed to sync identity:", error);
       throw error;
     } else {
-      // eslint-disable-next-line no-console
       console.log("Identity synced successfully.");
     }
   };
 
   // Self-healing: Ensure the user row exists in Supabase if we have a local identity.
-  // Optimization: Check existence (Read) before writing to avoid unnecessary upserts.
   useEffect(() => {
     async function checkAndSync() {
       if (!authReady || !hasIdentity || !user || !publicKey) return;
@@ -93,13 +105,12 @@ export function KeyProvider({ children }: { children: React.ReactNode }) {
       // Check if user exists with correct public key
       const { data, error } = await supabase
         .from("users")
-        .select("public_key")
+        .select("public_key, box_public_key")
         .eq("id", user.id)
         .single();
 
       // If user missing or key mismatch, sync.
-      // We use 'upsert' in syncIdentity which handles creation.
-      if (error || !data || data.public_key !== publicKey) {
+      if (error || !data || data.public_key !== publicKey || data.box_public_key !== boxPublicKey) {
         console.log("User missing or key mismatch on server, syncing...");
         syncIdentity().catch((err) => console.error("Auto-sync failed:", err));
       }
@@ -108,7 +119,7 @@ export function KeyProvider({ children }: { children: React.ReactNode }) {
     if (authReady && hasIdentity) {
       checkAndSync();
     }
-  }, [authReady, hasIdentity, user]);
+  }, [authReady, hasIdentity, user, publicKey, boxPublicKey]);
 
   const initializeIdentity = async (passphrase: string) => {
     let currentUser = user;
@@ -124,40 +135,34 @@ export function KeyProvider({ children }: { children: React.ReactNode }) {
       const { data: anonData, error: anonError } =
         await supabase.auth.signInAnonymously();
 
-      // #region agent log
-      fetch(
-        "http://127.0.0.1:7242/ingest/09257254-ad20-4bdc-a801-8c5fc08b2906",
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            sessionId: "debug-session",
-            runId: "run1",
-            hypothesisId: "H2",
-            location: "KeyContext.tsx:initializeIdentity",
-            message: "Attempted signInAnonymously in initializeIdentity",
-            data: { hasUserAfter: !!anonData?.user, hasError: !!anonError },
-            timestamp: Date.now(),
-          }),
-        }
-      ).catch(() => { });
-      // #endregion
-
       if (anonError || !anonData?.user) {
         throw new Error("No Supabase auth user; ensure auth session is created.");
       }
       currentUser = anonData.user;
     }
 
-    const { publicKey: pub, privateKey } = generateEd25519KeyPair();
-    const token = deriveTokenId(pub);
-    const enc = await encryptAndPersist(privateKey, passphrase, pub, token);
+    // Generate both key pairs
+    const { publicKey: signingPub, privateKey: signingPriv } = generateEd25519KeyPair();
+    const { boxPublicKey: boxPub, boxSecretKey: boxSec } = generateBoxKeyPair();
+    const token = deriveTokenId(signingPub);
+
+    // Encrypt both keys
+    const encSigningKey = await encryptPrivateKey(signingPriv, passphrase);
+    const encBoxKey = await encryptBoxSecretKey(boxSec, passphrase);
+
+    // Persist to localStorage
+    saveEncryptedKeyToStorage(encSigningKey);
+    savePublicKeyToStorage(signingPub);
+    saveTokenIdToStorage(token);
+    saveEncryptedBoxSecretKeyToStorage(encBoxKey);
+    saveBoxPublicKeyToStorage(boxPub);
 
     // Upsert into Supabase users table
     const { error } = await supabase.from("users").upsert(
       {
         id: currentUser.id,
-        public_key: pub,
+        public_key: signingPub,
+        box_public_key: boxPub,
         token_id: token,
         warning_acknowledged: true,
       },
@@ -165,38 +170,25 @@ export function KeyProvider({ children }: { children: React.ReactNode }) {
     );
 
     if (error) {
-      // #region agent log
-      fetch(
-        "http://127.0.0.1:7242/ingest/09257254-ad20-4bdc-a801-8c5fc08b2906",
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            sessionId: "debug-session",
-            runId: "run1",
-            hypothesisId: "H2",
-            location: "KeyContext.tsx:initializeIdentity",
-            message: "Supabase users upsert failed",
-            data: { error: error.message },
-            timestamp: Date.now(),
-          }),
-        }
-      ).catch(() => { });
-      // #endregion
+      console.error("Supabase users upsert failed:", error);
       throw error;
     }
 
-    setPublicKey(pub);
+    setPublicKey(signingPub);
+    setBoxPublicKey(boxPub);
     setTokenId(token);
-    setEncryptedPrivateKey(enc);
+    setEncryptedPrivateKey(encSigningKey);
+    setEncryptedBoxSecretKey(encBoxKey);
   };
 
   return (
     <KeyContext.Provider
       value={{
         publicKey,
+        boxPublicKey,
         tokenId,
         encryptedPrivateKey,
+        encryptedBoxSecretKey,
         isInitialized,
         hasIdentity,
         initializeIdentity,
@@ -208,20 +200,6 @@ export function KeyProvider({ children }: { children: React.ReactNode }) {
   );
 }
 
-async function encryptAndPersist(
-  privateKeyBase64: string,
-  passphrase: string,
-  publicKeyBase64: string,
-  tokenId: string
-): Promise<EncryptedPrivateKey> {
-  const { encryptPrivateKey } = await import("@/lib/crypto");
-  const enc = await encryptPrivateKey(privateKeyBase64, passphrase);
-  saveEncryptedKeyToStorage(enc);
-  savePublicKeyToStorage(publicKeyBase64);
-  saveTokenIdToStorage(tokenId);
-  return enc;
-}
-
 export function useKeyContext(): KeyContextValue {
   const ctx = useContext(KeyContext);
   if (!ctx) {
@@ -229,5 +207,3 @@ export function useKeyContext(): KeyContextValue {
   }
   return ctx;
 }
-
-
