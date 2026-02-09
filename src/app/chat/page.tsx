@@ -5,6 +5,9 @@ import { supabase } from "@/lib/supabaseClient";
 import { useKeyContext } from "@/context/KeyContext";
 import { useSupabaseAuth } from "@/context/SupabaseAuthProvider";
 import { decryptMessage, encryptMessage } from "@/lib/messageCrypto";
+import { useToast } from "@/components/Toast";
+import { LoadingSpinner } from "@/components/LoadingSpinner";
+import { validateMessage } from "@/lib/validation";
 
 interface Contact {
   id: string;
@@ -28,7 +31,9 @@ interface MessageRow {
 export default function ChatPage() {
   const { publicKey, boxPublicKey, tokenId } = useKeyContext();
   const { authReady } = useSupabaseAuth();
+  const { addToast } = useToast();
   const [contacts, setContacts] = useState<Contact[]>([]);
+  const [loadingContacts, setLoadingContacts] = useState(true);
   const [selectedContactId, setSelectedContactId] = useState<string | null>(
     null
   );
@@ -48,25 +53,31 @@ export default function ChatPage() {
   useEffect(() => {
     if (!authReady) return;
     async function loadUserAndContacts() {
-      const { data: auth } = await supabase.auth.getUser();
-      if (!auth.user) return;
-      setUserId(auth.user.id);
+      setLoadingContacts(true);
+      try {
+        const { data: auth } = await supabase.auth.getUser();
+        if (!auth.user) return;
+        setUserId(auth.user.id);
 
-      const { data, error } = await supabase
-        .from("contacts")
-        .select("id, owner_id, peer_user_id, session_key_material, created_at")
-        .order("created_at", { ascending: true });
-      if (error) {
-        console.error(error);
-        return;
-      }
-      setContacts(data as Contact[]);
-      if (data && data.length > 0 && !selectedContactId) {
-        setSelectedContactId(data[0].id);
+        const { data, error } = await supabase
+          .from("contacts")
+          .select("id, owner_id, peer_user_id, session_key_material, created_at")
+          .order("created_at", { ascending: true });
+        if (error) {
+          console.error(error);
+          addToast("Failed to load contacts", "error");
+          return;
+        }
+        setContacts(data as Contact[]);
+        if (data && data.length > 0 && !selectedContactId) {
+          setSelectedContactId(data[0].id);
+        }
+      } finally {
+        setLoadingContacts(false);
       }
     }
     loadUserAndContacts();
-  }, [authReady, selectedContactId]);
+  }, [authReady, selectedContactId, addToast]);
 
   useEffect(() => {
     if (!selectedContact || !authReady) return;
@@ -141,6 +152,14 @@ export default function ChatPage() {
 
   async function handleSend() {
     if (!input.trim() || !selectedContact || !userId || !publicKey) return;
+
+    // Validate message
+    const validation = validateMessage(input);
+    if (!validation.valid) {
+      addToast(validation.error || "Invalid message", "error");
+      return;
+    }
+
     setSending(true);
     try {
       const sessionKeyBytes = Buffer.from(
@@ -166,11 +185,13 @@ export default function ChatPage() {
       });
       if (error) {
         console.error("Insert message failed:", error);
+        addToast("Failed to send message", "error");
         throw error;
       }
       setInput("");
     } catch (err) {
       console.error(err);
+      addToast("Error sending message", "error");
     } finally {
       setSending(false);
     }
@@ -190,12 +211,17 @@ export default function ChatPage() {
         </div>
         <div className="flex-1 space-y-2 overflow-y-auto">
           <p className="text-xs text-zinc-500 mb-1">Contacts</p>
-          {contacts.length === 0 && (
+          {loadingContacts && (
+            <div className="flex items-center justify-center py-8">
+              <LoadingSpinner size="md" />
+            </div>
+          )}
+          {!loadingContacts && contacts.length === 0 && (
             <p className="text-xs text-zinc-600">
               No contacts. Share your Token ID and accept a handshake.
             </p>
           )}
-          {contacts.map((c) => (
+          {!loadingContacts && contacts.map((c) => (
             <button
               key={c.id}
               onClick={() => setSelectedContactId(c.id)}
@@ -203,6 +229,8 @@ export default function ChatPage() {
                 ? "border-zinc-400 bg-zinc-900"
                 : "border-zinc-900 bg-zinc-950 hover:border-zinc-700"
                 }`}
+              aria-label={`Select contact ${c.peer_user_id.slice(0, 8)}`}
+              aria-pressed={c.id === selectedContactId}
             >
               <div className="font-medium text-zinc-100">
                 {c.peer_user_id.slice(0, 8)}…
@@ -301,12 +329,15 @@ export default function ChatPage() {
                     handleSend();
                   }
                 }}
+                aria-label="Message input"
               />
               <button
                 onClick={handleSend}
                 disabled={!selectedContact || sending || !input.trim()}
-                className="rounded-full bg-zinc-100 px-4 py-2 text-sm font-medium text-black hover:bg-zinc-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="rounded-full bg-zinc-100 px-4 py-2 text-sm font-medium text-black hover:bg-zinc-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                aria-label="Send message"
               >
+                {sending ? <LoadingSpinner size="sm" /> : null}
                 Send
               </button>
             </div>

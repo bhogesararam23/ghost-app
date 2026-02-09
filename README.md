@@ -67,6 +67,63 @@ Messages are encrypted with high-entropy nonces. The database enforces strict Ro
    npm run dev
    ```
 
+6. **Run Tests (Optional)**
+   ```bash
+   npm test
+   ```
+
+## 🧪 Testing
+
+The project uses Vitest for testing:
+
+```bash
+# Run tests
+npm test
+
+# Run tests with UI
+npm run test:ui
+
+# Run tests in watch mode
+npm test -- --watch
+```
+
+Tests cover:
+- Cryptographic utilities (key generation, encryption/decryption)
+- Input validation (token IDs, passphrases, messages)
+- Session key derivation (ECDH)
+
+## 🐛 Troubleshooting
+
+### Common Issues
+
+**Issue: "Initiator identity not found" during handshake**
+- **Cause**: The initiating user's identity hasn't synced to Supabase
+- **Solution**: The initiator should refresh their browser or navigate to Settings and use "Force Sync Identity"
+
+**Issue: Messages not appearing in chat**
+- **Cause**: Decryption failure or session key mismatch
+- **Solution**: Verify both parties completed the handshake successfully. Check browser console for errors.
+
+**Issue: "Failed to load contacts"**
+- **Cause**: Supabase connection issue or RLS policy problem
+- **Solution**: Check `.env.local` credentials are correct. Verify RLS policies are applied in Supabase.
+
+**Issue: Hydration mismatch errors**
+- **Cause**: Server/client rendering mismatch with localStorage
+- **Solution**: Clear localStorage and refresh. This is expected on first load as keys are loaded client-side.
+
+**Issue: "No Supabase auth user"**
+- **Cause**: Anonymous session hasn't been created
+- **Solution**: Ensure Supabase anonymous authentication is enabled in your project settings.
+
+### Development Best Practices
+
+1. **Never** commit `.env.local` - it contains secrets
+2. **Always** test handshake flow after crypto changes
+3. **Clear** localStorage when testing identity generation
+4. **Use** browser DevTools Application tab to inspect stored keys
+5. **Monitor** Supabase logs for RLS policy issues
+
 ## 🛡 Security Note
 
 This is a **concept prototype**. While it uses industry-standard cryptographic primitives, it has not undergone a formal security audit. 

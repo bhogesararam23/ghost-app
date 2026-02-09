@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useKeyContext } from "@/context/KeyContext";
 import { useSupabaseAuth } from "@/context/SupabaseAuthProvider";
 import { entropyToMnemonic } from "@/lib/mnemonic";
+import { validatePassphrase } from "@/lib/validation";
 
 export default function OnboardingPage() {
   const router = useRouter();
@@ -18,6 +19,9 @@ export default function OnboardingPage() {
   // Recovery phrase state
   const [recoveryPhrase, setRecoveryPhrase] = useState<string[] | null>(null);
   const [phraseConfirmed, setPhraseConfirmed] = useState(false);
+
+  // Passphrase strength
+  const passphraseValidation = validatePassphrase(passphrase);
 
   if (hasIdentity && !recoveryPhrase) {
     router.replace("/chat");
@@ -34,6 +38,11 @@ export default function OnboardingPage() {
 
     if (!passphrase || passphrase.length < 8) {
       setError("Passphrase must be at least 8 characters.");
+      return;
+    }
+
+    if (!passphraseValidation.valid) {
+      setError(passphraseValidation.error || "Invalid passphrase");
       return;
     }
 
@@ -179,7 +188,24 @@ export default function OnboardingPage() {
               value={passphrase}
               onChange={(e) => setPassphrase(e.target.value)}
               autoComplete="new-password"
+              aria-label="Passphrase"
+              aria-describedby="passphrase-strength"
             />
+            {passphrase && passphraseValidation.strength && (
+              <p id="passphrase-strength" className="text-xs mt-1">
+                Strength:{" "}
+                <span
+                  className={`font-medium ${passphraseValidation.strength === "strong"
+                      ? "text-green-400"
+                      : passphraseValidation.strength === "medium"
+                        ? "text-yellow-400"
+                        : "text-red-400"
+                    }`}
+                >
+                  {passphraseValidation.strength}
+                </span>
+              </p>
+            )}
           </div>
 
           <div className="space-y-2">

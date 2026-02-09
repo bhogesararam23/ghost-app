@@ -9,6 +9,9 @@ import {
   loadEncryptedBoxSecretKeyFromStorage,
   decryptBoxSecretKey,
 } from "@/lib/crypto";
+import { useToast } from "@/components/Toast";
+import { LoadingSpinner } from "@/components/LoadingSpinner";
+import { validateTokenId } from "@/lib/validation";
 
 import { useSupabaseAuth } from "@/context/SupabaseAuthProvider";
 
@@ -24,6 +27,7 @@ export default function HandshakePage() {
   const router = useRouter();
   const { tokenId, publicKey, boxPublicKey, encryptedBoxSecretKey } = useKeyContext();
   const { user } = useSupabaseAuth();
+  const { addToast } = useToast();
   const [targetToken, setTargetToken] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -53,10 +57,14 @@ export default function HandshakePage() {
   async function handleInitiate(e: FormEvent) {
     e.preventDefault();
     setError(null);
-    if (!targetToken || targetToken.length < 4) {
-      setError("Enter a valid Token ID from another device.");
+
+    // Validate token format
+    const validation = validateTokenId(targetToken);
+    if (!validation.valid) {
+      setError(validation.error || "Invalid token format");
       return;
     }
+
     setSubmitting(true);
     try {
       // Use cached user if available to save a round trip
@@ -80,10 +88,12 @@ export default function HandshakePage() {
         throw new Error(error.message);
       }
       setTargetToken("");
+      addToast("Handshake request sent successfully", "success");
     } catch (err) {
       const msg =
         err instanceof Error ? err.message : "Failed to create handshake.";
       setError(msg);
+      addToast(msg, "error");
     } finally {
       setSubmitting(false);
     }
@@ -145,6 +155,7 @@ export default function HandshakePage() {
       if (rpcError) throw rpcError;
 
       setPending((prev) => prev.filter((p) => p.id !== h.id));
+      addToast("Handshake accepted successfully!", "success");
       router.replace("/chat");
     } catch (err: unknown) {
       console.error("Handshake accept error:", err);
@@ -155,6 +166,7 @@ export default function HandshakePage() {
         msg = (err as { message?: string }).message || JSON.stringify(err);
       }
       setError(msg);
+      addToast(msg, "error");
     }
   }
 
@@ -194,12 +206,15 @@ export default function HandshakePage() {
               placeholder="XXXX-XXXX-XXXX"
               value={targetToken}
               onChange={(e) => setTargetToken(e.target.value.toUpperCase())}
+              aria-label="Target Token ID"
             />
             <button
               type="submit"
               disabled={submitting}
-              className="w-full rounded-md bg-zinc-100 py-2 text-sm font-medium text-black hover:bg-zinc-200 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="w-full rounded-md bg-zinc-100 py-2 text-sm font-medium text-black hover:bg-zinc-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+              aria-label="Request connection"
             >
+              {submitting && <LoadingSpinner size="sm" />}
               {submitting ? "Creating handshake..." : "Request connection"}
             </button>
           </form>
