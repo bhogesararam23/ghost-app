@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useContext, useEffect, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import { useSupabaseAuth } from "./SupabaseAuthProvider";
 import {
@@ -61,7 +61,7 @@ export function KeyProvider({ children }: { children: React.ReactNode }) {
     setIsInitialized(true);
   }, []);
 
-  const syncIdentity = async () => {
+  const syncIdentity = useCallback(async () => {
     if (!authReady || !hasIdentity || !publicKey || !boxPublicKey || !tokenId) return;
 
     // Use cached user if available, otherwise fetch
@@ -119,7 +119,7 @@ export function KeyProvider({ children }: { children: React.ReactNode }) {
     if (authReady && hasIdentity) {
       checkAndSync();
     }
-  }, [authReady, hasIdentity, user, publicKey, boxPublicKey]);
+  }, [authReady, hasIdentity, user, publicKey, boxPublicKey, syncIdentity]);
 
   const initializeIdentity = async (passphrase: string) => {
     let currentUser = user;
