@@ -1,0 +1,47 @@
+name: Bug report
+description: Report a reproducible problem in Ghost Network
+title: "[Bug]: "
+labels:
+  - bug
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Please do not include private keys, passphrases, access tokens or private message content.
+
+  - type: textarea
+    id: description
+    attributes:
+      label: What happened?
+      description: Describe the problem and what you expected instead.
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. ...
+        2. ...
+        3. ...
+    validations:
+      required: true
+
+  - type: input
+    id: browser
+    attributes:
+      label: Browser
+      placeholder: Chrome 140 / Firefox 142 / etc.
+
+  - type: input
+    id: os
+    attributes:
+      label: OS
+      placeholder: Windows / Linux / macOS / Android / iOS
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant logs
+      description: Remove secrets and sensitive information before posting.

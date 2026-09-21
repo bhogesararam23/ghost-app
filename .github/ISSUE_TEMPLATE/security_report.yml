@@ -1,0 +1,30 @@
+name: Security report
+description: Report a non-sensitive security hardening concern
+title: "[Security]: "
+labels:
+  - security
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Do not use this form for an undisclosed vulnerability with significant impact.
+        Use the private vulnerability reporting flow or follow SECURITY.md instead.
+
+  - type: textarea
+    id: issue
+    attributes:
+      label: Security concern
+    validations:
+      required: true
+
+  - type: textarea
+    id: impact
+    attributes:
+      label: Potential impact
+    validations:
+      required: true
+
+  - type: textarea
+    id: mitigation
+    attributes:
+      label: Suggested mitigation
