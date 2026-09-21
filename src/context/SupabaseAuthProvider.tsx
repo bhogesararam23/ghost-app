@@ -2,11 +2,12 @@
 
 import { createContext, useContext, useEffect, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
+import type { Session, User } from "@supabase/supabase-js";
 
 interface SupabaseAuthContextValue {
   authReady: boolean;
-  user: any | null;
-  session: any | null;
+  user: User | null;
+  session: Session | null;
 }
 
 const SupabaseAuthContext = createContext<SupabaseAuthContextValue | undefined>(
@@ -19,8 +20,8 @@ export function SupabaseAuthProvider({
   children: React.ReactNode;
 }) {
   const [authReady, setAuthReady] = useState(false);
-  const [user, setUser] = useState<any | null>(null);
-  const [session, setSession] = useState<any | null>(null);
+  const [user, setUser] = useState<User | null>(null);
+  const [session, setSession] = useState<Session | null>(null);
 
   useEffect(() => {
     let isMounted = true;
@@ -46,7 +47,7 @@ export function SupabaseAuthProvider({
       }
     }
 
-    ensureSession();
+    void ensureSession();
 
     return () => {
       isMounted = false;
