@@ -606,6 +606,17 @@ Please do not publish an undisclosed security vulnerability in a normal public i
 
 Use a private security reporting path for vulnerabilities so they can be investigated before public disclosure.
 
+
+## Project philosophy
+
+Ghost Network is being built as an ambitious student project with open source principles from the beginning.
+
+The goal is not to claim that the current prototype has solved private messaging. The goal is to build the system in public, understand the hard parts properly and gradually move from a working prototype toward a protocol that can be independently reviewed.
+
+That means security claims will stay conservative, incomplete work will be documented and important design decisions will be written down instead of being hidden inside implementation details.
+
 ## License
 
-This repository is licensed under the **GNU Affero General Public License v3.0**.
+Ghost Network is licensed under the GNU Affero General Public License v3.0. See [LICENSE](LICENSE).
+
+For a security focused project, keeping the protocol and implementation open for inspection is an important part of the project direction.
