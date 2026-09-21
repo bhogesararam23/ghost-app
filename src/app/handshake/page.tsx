@@ -25,7 +25,7 @@ interface PendingHandshake {
 
 export default function HandshakePage() {
   const router = useRouter();
-  const { tokenId, publicKey, boxPublicKey, encryptedBoxSecretKey } = useKeyContext();
+  const { tokenId, publicKey, encryptedBoxSecretKey } = useKeyContext();
   const { user } = useSupabaseAuth();
   const { addToast } = useToast();
   const [targetToken, setTargetToken] = useState("");
