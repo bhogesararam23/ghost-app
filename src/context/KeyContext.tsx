@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useCallback, useContext, useEffect, useState } from "react";
+import { createContext, useCallback, useContext, useSyncExternalStore } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import { useSupabaseAuth } from "./SupabaseAuthProvider";
 import {
@@ -37,30 +37,99 @@ interface KeyContextValue {
 
 const KeyContext = createContext<KeyContextValue | undefined>(undefined);
 
+interface IdentityStorageSnapshot {
+  publicKey: string | null;
+  boxPublicKey: string | null;
+  tokenId: string | null;
+  encryptedPrivateKey: EncryptedPrivateKey | null;
+  encryptedBoxSecretKey: EncryptedBoxSecretKey | null;
+  isInitialized: boolean;
+}
+
+const EMPTY_IDENTITY_STORAGE: IdentityStorageSnapshot = {
+  publicKey: null,
+  boxPublicKey: null,
+  tokenId: null,
+  encryptedPrivateKey: null,
+  encryptedBoxSecretKey: null,
+  isInitialized: false,
+};
+
+const IDENTITY_STORAGE_EVENT = "ghost:identity-storage-changed";
+
+let cachedIdentitySignature = "";
+let cachedIdentitySnapshot = EMPTY_IDENTITY_STORAGE;
+
+function getIdentitySnapshot(): IdentityStorageSnapshot {
+  if (typeof window === "undefined") {
+    return EMPTY_IDENTITY_STORAGE;
+  }
+
+  const snapshot: IdentityStorageSnapshot = {
+    publicKey: loadPublicKeyFromStorage(),
+    boxPublicKey: loadBoxPublicKeyFromStorage(),
+    tokenId: loadTokenIdFromStorage(),
+    encryptedPrivateKey: loadEncryptedKeyFromStorage(),
+    encryptedBoxSecretKey: loadEncryptedBoxSecretKeyFromStorage(),
+    isInitialized: true,
+  };
+
+  const signature = JSON.stringify(snapshot);
+  if (signature !== cachedIdentitySignature) {
+    cachedIdentitySignature = signature;
+    cachedIdentitySnapshot = snapshot;
+  }
+
+  return cachedIdentitySnapshot;
+}
+
+function getServerIdentitySnapshot(): IdentityStorageSnapshot {
+  return EMPTY_IDENTITY_STORAGE;
+}
+
+function subscribeToIdentityStorage(callback: () => void): () => void {
+  if (typeof window === "undefined") {
+    return () => {};
+  }
+
+  window.addEventListener("storage", callback);
+  window.addEventListener(IDENTITY_STORAGE_EVENT, callback);
+
+  return () => {
+    window.removeEventListener("storage", callback);
+    window.removeEventListener(IDENTITY_STORAGE_EVENT, callback);
+  };
+}
+
+function notifyIdentityStorageChanged(): void {
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(new Event(IDENTITY_STORAGE_EVENT));
+  }
+}
+
 export function KeyProvider({ children }: { children: React.ReactNode }) {
-  // Hydration fix: Initialize state to null (server-safe)
-  const [publicKey, setPublicKey] = useState<string | null>(null);
-  const [boxPublicKey, setBoxPublicKey] = useState<string | null>(null);
-  const [tokenId, setTokenId] = useState<string | null>(null);
-  const [encryptedPrivateKey, setEncryptedPrivateKey] =
-    useState<EncryptedPrivateKey | null>(null);
-  const [encryptedBoxSecretKey, setEncryptedBoxSecretKey] =
-    useState<EncryptedBoxSecretKey | null>(null);
-  const [isInitialized, setIsInitialized] = useState(false);
+  const storedIdentity = useSyncExternalStore(
+    subscribeToIdentityStorage,
+    getIdentitySnapshot,
+    getServerIdentitySnapshot
+  );
 
-  const hasIdentity = !!(publicKey && boxPublicKey && tokenId && encryptedPrivateKey && encryptedBoxSecretKey);
+  const publicKey = storedIdentity.publicKey;
+  const boxPublicKey = storedIdentity.boxPublicKey;
+  const tokenId = storedIdentity.tokenId;
+  const encryptedPrivateKey = storedIdentity.encryptedPrivateKey;
+  const encryptedBoxSecretKey = storedIdentity.encryptedBoxSecretKey;
+  const isInitialized = storedIdentity.isInitialized;
+
+  const hasIdentity = !!(
+    publicKey &&
+    boxPublicKey &&
+    tokenId &&
+    encryptedPrivateKey &&
+    encryptedBoxSecretKey
+  );
+
   const { authReady, user } = useSupabaseAuth();
-
-  // Load keys from the browser storage boundary once the client has mounted.
-  // eslint-disable-next-line react-hooks/set-state-in-effect
-  useEffect(() => {
-    setPublicKey(loadPublicKeyFromStorage());
-    setBoxPublicKey(loadBoxPublicKeyFromStorage());
-    setTokenId(loadTokenIdFromStorage());
-    setEncryptedPrivateKey(loadEncryptedKeyFromStorage());
-    setEncryptedBoxSecretKey(loadEncryptedBoxSecretKeyFromStorage());
-    setIsInitialized(true);
-  }, []);
 
   const syncIdentity = useCallback(async () => {
     if (!authReady || !hasIdentity || !publicKey || !boxPublicKey || !tokenId) return;
@@ -175,11 +244,7 @@ export function KeyProvider({ children }: { children: React.ReactNode }) {
       throw error;
     }
 
-    setPublicKey(signingPub);
-    setBoxPublicKey(boxPub);
-    setTokenId(token);
-    setEncryptedPrivateKey(encSigningKey);
-    setEncryptedBoxSecretKey(encBoxKey);
+    notifyIdentityStorageChanged();
   };
 
   return (
