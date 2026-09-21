@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useCallback, useContext, useSyncExternalStore } from "react";
+import { createContext, useCallback, useContext, useEffect, useSyncExternalStore } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import { useSupabaseAuth } from "./SupabaseAuthProvider";
 import {
