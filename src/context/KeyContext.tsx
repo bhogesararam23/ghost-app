@@ -112,7 +112,7 @@ export function KeyProvider({ children }: { children: React.ReactNode }) {
       // If user missing or key mismatch, sync.
       if (error || !data || data.public_key !== publicKey || data.box_public_key !== boxPublicKey) {
         console.log("User missing or key mismatch on server, syncing...");
-        syncIdentity().catch((err) => console.error("Auto-sync failed:", err));
+        syncIdentity().catch((err: unknown) => console.error("Auto-sync failed:", err));
       }
     }
 
