@@ -51,7 +51,8 @@ export function KeyProvider({ children }: { children: React.ReactNode }) {
   const hasIdentity = !!(publicKey && boxPublicKey && tokenId && encryptedPrivateKey && encryptedBoxSecretKey);
   const { authReady, user } = useSupabaseAuth();
 
-  // Load keys from storage on mount
+  // Load keys from the browser storage boundary once the client has mounted.
+  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => {
     setPublicKey(loadPublicKeyFromStorage());
     setBoxPublicKey(loadBoxPublicKeyFromStorage());
@@ -95,7 +96,7 @@ export function KeyProvider({ children }: { children: React.ReactNode }) {
     } else {
       console.log("Identity synced successfully.");
     }
-  };
+  }, [authReady, hasIdentity, publicKey, boxPublicKey, tokenId, user]);
 
   // Self-healing: Ensure the user row exists in Supabase if we have a local identity.
   useEffect(() => {
