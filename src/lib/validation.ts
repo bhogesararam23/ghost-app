@@ -56,7 +56,7 @@ export function validatePassphrase(passphrase: string): {
 
     if (passphrase.length >= 12 && criteriaCount >= 3) {
         strength = "strong";
-    } else if (passphrase.length >= 10 && criteriaCount >= 2) {
+    } else if (passphrase.length >= 8 && criteriaCount >= 2) {
         strength = "medium";
     }
 
