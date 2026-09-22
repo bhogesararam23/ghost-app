@@ -29,7 +29,7 @@ interface MessageRow {
 }
 
 export default function ChatPage() {
-  const { publicKey, boxPublicKey, tokenId } = useKeyContext();
+  const { publicKey, tokenId } = useKeyContext();
   const { authReady } = useSupabaseAuth();
   const { addToast } = useToast();
   const [contacts, setContacts] = useState<Contact[]>([]);
