@@ -1,63 +1,94 @@
 # Architecture
 
-Ghost Network is structured around a simple privacy boundary:
+Ghost Network is a privacy-focused messaging prototype built around a simple boundary:
 
-**the client owns the cryptographic operations**
+**cryptographic operations happen on the client**
 
 **Supabase handles coordination and persistence**
 
-## Identity
+## Components
 
-The browser generates:
+### Browser application
 
-- Ed25519 signing key pair
-- X25519 style encryption key pair
-- Token ID derived from the public identity key
+The Next.js client currently owns local identity creation, key management, Token ID generation, handshake UI, session establishment, message encryption/decryption, protected local key storage, and chat/contact state.
 
-Private key material is encrypted locally before it is stored.
+Relevant areas:
 
-## Handshake
+- `src/app/` — routes and application UI
+- `src/context/` — application-level key and auth state
+- `src/lib/crypto.ts` — identity and key utilities
+- `src/lib/messageCrypto.ts` — message encryption/decryption
+- `src/lib/validation.ts` — validation logic
 
-Users exchange Token IDs out of band.
+### Supabase
 
-A handshake request is created for the target Token ID.
+Supabase currently provides PostgreSQL persistence, Row Level Security, anonymous application authentication, and coordination for identities, handshakes, contacts, and messages.
 
-After acceptance, both sides can derive shared session material from their encryption keys.
+The server should not require plaintext message content or client private keys for normal coordination.
 
-## Messaging
+## Identity flow
 
-Message plaintext is encrypted in the browser using AES-GCM.
+1. Browser generates an Ed25519 signing key pair.
+2. Browser generates an X25519-style encryption key pair.
+3. A Token ID is derived from public identity material.
+4. Private key material is protected locally before persistence.
+5. Public information needed for discovery/handshake is synchronized to Supabase.
 
-The database receives ciphertext and nonce information along with the metadata needed for storage and delivery.
+## Handshake flow
 
-The recipient decrypts the message locally.
+1. User shares a Token ID out of band.
+2. Server-side coordination resolves the target.
+3. A handshake request is created.
+4. Recipient accepts or rejects the request.
+5. Clients derive shared session material from their encryption keys.
 
-## Backend boundary
+The exact protocol is still evolving and requires further formalization and verification.
 
-The backend should not need message plaintext or private key material.
+## Message flow
 
-The current Supabase schema uses Row Level Security to constrain access to user, contact, handshake and message records.
+1. Plaintext exists on the sender client.
+2. Client derives or obtains the current prototype session material.
+3. Client encrypts the message using AES-GCM.
+4. Ciphertext and delivery metadata are sent to Supabase.
+5. Recipient retrieves ciphertext.
+6. Recipient decrypts locally.
+
+The design aims to keep message plaintext out of the backend.
 
 ## Trust boundaries
 
 ### Trusted by the current prototype
 
 - the user's device and browser environment
-- browser crypto primitives
+- browser cryptography implementations
 - the local passphrase used to protect key material
-- Supabase policy configuration
+- deployed Supabase RLS configuration
 
 ### Not fully protected yet
 
 - browser compromise
-- malicious extensions
+- malicious browser extensions
+- endpoint compromise
 - metadata analysis
-- complete identity recovery
-- compromised endpoints
-- protocol level forward secrecy
+- full identity recovery
+- protocol-level forward secrecy
+- post-compromise security
+- multi-device consistency
 
-## Why this architecture is still evolving
+## Security properties not yet claimed
 
-Encryption is only one part of a secure messenger.
+The current implementation should not be described as providing production-grade anonymity, formal end-to-end security guarantees, forward secrecy, post-compromise security, or complete metadata protection.
 
-Future work includes formal protocol design, key rotation, forward secrecy, better recovery, stronger metadata protection and external review.
+## Design principles
+
+### Privacy by design
+Keep plaintext and long-lived private key material on the client whenever the design permits it.
+
+### Crypto before convenience
+Do not replace a cryptographic operation with an application shortcut merely because it is easier.
+
+### Small, testable modules
+Keep cryptography, validation, identity management, messaging, and UI logic separable.
+
+### Conservative security claims
+Document what is implemented, what is assumed, and what remains unresolved.
