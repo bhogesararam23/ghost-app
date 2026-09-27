@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Security vulnerability reporting
+    url: https://github.com/bhogesararam23/ghost-app/security/advisories/new
+    about: Report security vulnerabilities privately. Do not publish undisclosed vulnerabilities in public issues.
+  - name: Project documentation
+    url: https://github.com/bhogesararam23/ghost-app/tree/master/docs
+    about: Read the technical documentation before opening an issue.
