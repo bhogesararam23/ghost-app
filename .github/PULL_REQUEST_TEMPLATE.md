@@ -1,16 +1,16 @@
 ## What changed
 
-<!-- Explain the change in a few sentences -->
+<!-- Summarize the implementation. -->
 
 ## Why
 
-<!-- Why is this change needed -->
+<!-- Explain the problem this PR solves. -->
 
 ## Type of change
 
 - [ ] Feature
 - [ ] Bug fix
-- [ ] Security / crypto
+- [ ] Security / cryptography
 - [ ] Refactor
 - [ ] Documentation
 - [ ] Tests
@@ -18,23 +18,30 @@
 
 ## Testing
 
-- [ ] `npm test`
-- [ ] `npm run build`
 - [ ] `npm run lint`
+- [ ] `npm test -- --run`
+- [ ] `npm run build`
 
-## Security impact
+## Security and privacy impact
 
-<!-- Required for crypto, identity, auth, RLS, message handling or sensitive data changes -->
+<!-- Complete this for crypto, identity, auth, messages, storage, or RLS changes. -->
 
-- Does this change affect cryptographic behaviour?
-- Does this change affect what the server can see?
-- Does this change affect key storage or recovery?
-- Does this change affect Supabase RLS?
+- Does this affect cryptographic behaviour?
+- Does this affect key storage or recovery?
+- Does this change what the server can observe?
+- Does this affect authentication or authorization?
+- Does this affect Supabase RLS or schema behaviour?
+
+## Compatibility
+
+- [ ] Existing users/data remain compatible
+- [ ] Breaking changes are documented
+- [ ] Database changes include the required schema/migration update
 
 ## Checklist
 
-- [ ] I did not commit secrets or private keys
-- [ ] I added or updated tests where needed
-- [ ] I updated documentation when behaviour changed
-- [ ] I kept the change focused
-- [ ] I considered backwards compatibility
+- [ ] I did not commit secrets or private keys.
+- [ ] I added or updated tests where appropriate.
+- [ ] I updated documentation when behaviour changed.
+- [ ] I considered accessibility for UI changes.
+- [ ] I kept this PR focused.
