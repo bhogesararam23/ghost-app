@@ -1,58 +1,37 @@
 # Security Policy
 
-## Status
+## Scope
 
-Ghost Network is an experimental privacy focused student project.
+Ghost Network is an experimental privacy-focused project. The repository uses established cryptographic primitives, but the complete protocol and application have **not** been formally security audited.
 
-It uses established cryptographic primitives, but the complete application and protocol have not been formally security audited.
-
-Please do not use the current prototype for high risk communications or assume that it provides production grade anonymity.
+Do not use the current prototype for high-risk communications and do not interpret the project as providing production-grade anonymity.
 
 ## Supported versions
 
-The latest version on the `master` branch is the primary development version.
-
-Older commits and branches are generally not security supported.
+The `master` branch is the active development line. Older commits and branches are not considered supported security releases.
 
 ## Reporting a vulnerability
 
-Please do not open a public GitHub issue for a suspected security vulnerability.
+Please do **not** open a public GitHub issue for an undisclosed security vulnerability.
 
-Use GitHub's private vulnerability reporting flow for this repository when available.
+Use GitHub's private vulnerability reporting flow when available:
+https://github.com/bhogesararam23/ghost-app/security/advisories/new
 
-When reporting a vulnerability, include:
+When reporting a vulnerability, include the affected component/file, a clear description, reproduction steps, potential impact, a safe proof of concept when useful, and suggested mitigation when known.
 
-- a clear description of the issue
-- affected component or file
-- reproduction steps
-- possible impact
-- any proof of concept that is safe to share
-- suggested mitigation if you have one
+Never include real private keys, passphrases, access tokens, or private message content.
 
-Please avoid including real private keys, passphrases, private messages or other sensitive user data.
+## Security-sensitive areas
 
-## Security principles
-
-Changes involving cryptography, identity, authentication, message handling or Supabase RLS should be treated as security sensitive.
-
-In particular:
-
-- never log private keys or passphrases
-- never send plaintext message content to the backend
-- do not weaken encryption just to simplify implementation
-- do not store private keys in plaintext
-- review RLS changes carefully
-- add regression tests for security fixes
+Treat changes involving cryptographic protocol logic, identity/key lifecycle, authentication/authorization, message encryption/decryption, token generation/validation, Supabase schema/RLS, recovery/device management, or metadata/retention behaviour as security-sensitive.
 
 ## Current known limitations
 
-The project currently has known prototype limitations including:
-
 - no formal security audit
-- no Double Ratchet style forward secrecy yet
-- encrypted key material currently relies on browser localStorage
-- simplified prototype recovery logic
-- remaining metadata exposure
-- incomplete protocol level testing
+- no Double Ratchet-style forward secrecy
+- encrypted key material relies on browser `localStorage`
+- recovery logic is experimental
+- metadata is not fully hidden
+- protocol-level testing is incomplete
 
-These limitations are tracked in the roadmap in the README.
+These limitations are tracked in the README roadmap.
