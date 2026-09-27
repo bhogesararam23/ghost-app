@@ -1,138 +1,66 @@
 # Contributing to Ghost Network
 
-Thank you for considering contributing to Ghost Network! This document provides guidelines for contributing to this privacy-focused messaging application.
+Thank you for considering a contribution to Ghost Network.
 
-## Code of Conduct
+Ghost Network is a security- and privacy-focused experimental project. Changes that affect cryptography, identity, authentication, message handling, or database access deserve extra review.
 
-- Be respectful and professional
-- Focus on constructive feedback
-- Prioritize security and privacy in all contributions
-- Follow the existing code style and patterns
+## Before you start
 
-## Getting Started
+Read [README.md](README.md), [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md), and [SECURITY.md](SECURITY.md).
+
+For large protocol or architecture changes, open an issue or discussion before implementing the change.
+
+## Local development
 
 ### Prerequisites
 
-- Node.js 18+ installed
-- A Supabase account and project
-- Basic understanding of end-to-end encryption concepts
+- Node.js 20+
+- npm
+- a Supabase project for application-level development
 
 ### Setup
 
-1. Fork and clone the repository
-2. Copy `.env.example` to `.env.local` and configure your Supabase credentials
-3. Install dependencies: `npm install`
-4. Run the development server: `npm run dev`
+1. Fork and clone the repository.
+2. Configure the required public Supabase environment variables in `.env.local`.
+3. Install dependencies with `npm ci`.
+4. Start the development server with `npm run dev`.
 
-## Development Guidelines
+## Quality checks
 
-### Code Style
-
-- **TypeScript**: Use TypeScript for all new code
-- **Formatting**: Code is automatically formatted with Next.js defaults
-- **Naming**: Use descriptive names for variables and functions
-  - Components: PascalCase (e.g., `ErrorBoundary`)
-  - Functions: camelCase (e.g., `validateTokenId`)
-  - Constants: UPPER_SNAKE_CASE (e.g., `TOKEN_ALPHABET`)
-
-### Security Considerations
-
-**Critical**: This is a privacy and security-focused application. All contributions must:
-
-1. **Never** log sensitive data (private keys, passphrases, decrypted messages)
-2. **Never** transmit unencrypted message content to the server
-3. **Always** validate user input before processing
-4. **Always** use constant-time comparisons for cryptographic operations
-5. **Never** store private keys in plaintext
-
-### Component Guidelines
-
-- Use functional components with hooks
-- Keep components focused and single-purpose
-- Add proper ARIA labels for accessibility
-- Handle loading and error states explicitly
-- Use the toast system for user feedback
-
-### Testing
-
-Before submitting changes:
+Before opening a pull request, run:
 
 ```bash
-# Run tests
-npm test
-
-# Run tests with UI
-npm run test:ui
-
-# Build to verify TypeScript compilation
+npm run lint
+npm test -- --run
 npm run build
 ```
 
-Write tests for:
-- All utility functions (crypto, validation, etc.)
-- Critical business logic
-- Edge cases and error scenarios
+CI runs the same checks on pushes to `master` and on pull requests.
 
-## Pull Request Process
+## Security-sensitive changes
 
-1. **Branch Naming**: Use descriptive branch names
-   - Feature: `feature/token-validation`
-   - Bug fix: `fix/handshake-timeout`
-   - Security: `security/xss-prevention`
+For crypto, identity, authentication, RLS, or message-handling changes, explain in the pull request which keys or trust relationships are affected, where sensitive material exists, what the server can and cannot see, how recovery is handled, whether compatibility changes, whether security properties change, and which tests cover the change.
 
-2. **Commit Messages**: Write clear, concise commit messages
-   - Format: `type: brief description`
-   - Types: `feat`, `fix`, `docs`, `style`, `refactor`, `test`, `security`
-   - Example: `feat: add passphrase strength indicator`
+Do not include real secrets, private keys, passphrases, or private message content in commits, issues, or pull requests.
 
-3. **Pull Request Description**:
-   - Describe what changed and why
-   - Reference related issues
-   - Include screenshots for UI changes
-   - List any breaking changes
+## Coding guidelines
 
-4. **Review Process**:
-   - All PRs require review before merging
-   - Address review feedback promptly
-   - Keep PRs focused and reasonably sized
+- Use TypeScript for application code.
+- Prefer small, focused modules.
+- Keep cryptographic operations isolated from UI concerns.
+- Validate external input.
+- Handle loading and error states explicitly.
+- Preserve accessibility semantics and keyboard navigation.
+- Document security trade-offs instead of silently weakening properties.
 
-## Areas for Contribution
+## Branch naming
 
-### High Priority
+Use descriptive names such as `feature/<name>`, `fix/<name>`, `security/<name>`, `refactor/<name>`, `docs/<name>`, or `test/<name>`.
 
-- Security enhancements and audits
-- Accessibility improvements
-- Test coverage expansion
-- Documentation improvements
+## Commit messages
 
-### Feature Ideas
+Use `type: short description`, for example `feat: add message retry handling` or `security: tighten message row policy`.
 
-- Double ratchet algorithm for forward secrecy
-- QR code scanning for Token ID exchange
-- Multi-device support
-- Message expiration improvements
+## Pull requests
 
-### Known Limitations
-
-- No forward secrecy (session keys don't rotate)
-- Recovery phrase system is simplified
-- No message read receipts
-- Limited mobile optimization
-
-## Security Reporting
-
-**Do NOT** open public issues for security vulnerabilities.
-
-If you discover a security issue:
-1. Email the maintainers privately (check README for contact)
-2. Provide detailed reproduction steps
-3. Wait for acknowledgment before public disclosure
-
-## Questions?
-
-Feel free to open a GitHub Discussion for:
-- Architecture questions
-- Feature proposals
-- General questions about the codebase
-
-Thank you for contributing to Ghost Network! 👻
+Keep pull requests focused and reasonably sized. Include what changed, why it changed, how it was tested, security/privacy impact, UI screenshots when useful, and migration or compatibility notes when relevant.
