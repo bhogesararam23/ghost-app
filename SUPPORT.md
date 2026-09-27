@@ -1,39 +1,21 @@
 # Support
 
-Ghost Network is an evolving student project, so support is community based rather than guaranteed.
+Ghost Network is an evolving open-source student project. Support is community based and best-effort.
 
 ## Before opening an issue
 
-Please check:
+Please check the [README](README.md), existing issues, [CONTRIBUTING.md](CONTRIBUTING.md), and [SECURITY.md](SECURITY.md).
 
-- the README
-- the existing issues
-- the roadmap
-- the contributing guide
+## Bugs
 
-## For bugs
+Open a bug report when the problem is reproducible and is not an undisclosed security vulnerability.
 
-Open a bug report when you have a reproducible problem.
+Include your environment, browser/OS where relevant, steps to reproduce, expected behaviour, actual behaviour, and relevant logs or screenshots. Remove secrets and sensitive information before posting.
 
-Include:
+## Security issues
 
-- environment
-- browser and OS where relevant
-- steps to reproduce
-- expected behaviour
-- actual behaviour
-- console or build errors when useful
+Do not report undisclosed vulnerabilities through a normal public issue. Follow [SECURITY.md](SECURITY.md) and use GitHub's private vulnerability reporting flow when available.
 
-Do not include secrets, private keys, passphrases or private message content.
+## Feature requests
 
-## For security issues
-
-Do not use a normal public issue.
-
-Follow [SECURITY.md](SECURITY.md).
-
-## For ideas
-
-Use a feature request for a concrete idea.
-
-For larger architecture or protocol changes, an issue or discussion should come before implementation so the design can be reviewed first.
+Use the feature request template for concrete product ideas. For large architectural, cryptographic, or protocol changes, open a discussion or issue first so the design can be reviewed before implementation.
